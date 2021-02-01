@@ -9,6 +9,10 @@ bool engineDebugMode = false;
 
 RetroEngine Engine = RetroEngine();
 
+#if RETRO_USING_ALLEGRO4
+volatile bool mouse_state_changed=true;
+#endif
+
 inline int getLowerRate(int intendRate, int targetRate)
 {
     int result   = 0;
@@ -205,6 +209,35 @@ bool processEvents()
         }
     }
 #endif
+
+#if RETRO_USING_ALLEGRO4
+       static int wasEsc = 0;
+       static int wasBackspace = 0;
+
+	if (key[KEY_ESC] && Engine.devMenu && !wasEsc) {
+		Engine.gameMode = ENGINE_INITDEVMENU;
+		wasEsc = 1;
+	}
+
+	if (key[KEY_BACKSPACE] && Engine.devMenu && !wasBackspace) {
+		Engine.gameSpeed = (Engine.gameSpeed != 1) ? 1 : Engine.fastForwardSpeed;
+		wasBackspace = 1;
+	}
+	
+	if (key[KEY_F4])
+		return false;
+	
+	wasBackspace = key[KEY_BACKSPACE];
+	wasEsc = key[KEY_ESC];
+	
+	if (mouse_state_changed) {
+            touchX[0] = mouse_x / Engine.windowScale;
+            touchY[0] = mouse_y / Engine.windowScale;
+            touchDown[0] = mouse_b & 1;
+	    touches=1;
+        } 
+#endif
+
     return true;
 }
 
@@ -212,6 +245,8 @@ void RetroEngine::Init()
 {
     CalculateTrigAngles();
     GenerateBlendLookupTable();
+    InitUserdata();
+
 #if RETRO_PLATFORM == RETRO_UWP
     static char resourcePath[256] = { 0 };
 
@@ -222,15 +257,18 @@ void RetroEngine::Init()
         std::copy(path.begin(), path.end(), resourcePath);
     }
 
-    char datapath[256];
+    char datapath[512];
     strcat(datapath, resourcePath);
-    strcat(datapath, "\\Data.rsdk");
+    strcat(datapath, "\\");
+    strcat(datapath, Engine.dataFile);
     CheckRSDKFile(datapath);
-#else
-    CheckRSDKFile(BASE_PATH "Data.rsdk");
+#else    
+    char dest[0x200];
+        
+    StrCopy(dest, BASE_PATH);
+    StrAdd(dest, Engine.dataFile);
+    CheckRSDKFile(dest);
 #endif
-    InitUserdata();
-
     gameMode = ENGINE_EXITGAME;
     running  = false;
     if (LoadGameConfig("Data/Game/GameConfig.bin")) {
@@ -251,8 +289,32 @@ void RetroEngine::Init()
     skipFrameIndex   = refreshRate / lower;
 }
 
+#if RETRO_USING_ALLEGRO4
+volatile int display_frame=0;
+
+void retro_mouse_callback(int flags) {
+    mouse_state_changed=true;
+}
+END_OF_FUNCTION(retro_mouse_callback)
+
+void display_frame_handler(void) 
+{
+    display_frame++;
+    display_frame&=3;
+}
+END_OF_FUNCTION(display_frame_handler)
+#endif
+
+void RetroEngine::ResetFrameCounter()
+{
+#ifdef RETRO_USING_ALLEGRO4
+	display_frame = 0;
+#endif
+}
+
 void RetroEngine::Run()
 {
+#if RETRO_USING_SDL2
     uint frameStart, frameEnd = SDL_GetTicks();
     float frameDelta = 0.0f;
 
@@ -309,6 +371,87 @@ void RetroEngine::Run()
             }
         }
     }
+#endif
+
+#if RETRO_USING_ALLEGRO4
+    LOCK_VARIABLE(display_frame);
+    LOCK_FUNCTION(display_frame_handler);
+    LOCK_VARIABLE(mouse_state_changed);
+    LOCK_FUNCTION(retro_mouse_callback);
+    install_int_ex(display_frame_handler, BPS_TO_TIMER(refreshRate));
+    install_mouse();
+    enable_hardware_cursor();
+    show_mouse(screen);
+    mouse_callback=retro_mouse_callback;
+   
+    inputDevice[INPUT_UP].keyMappings = KEY_UP;
+    inputDevice[INPUT_DOWN].keyMappings = KEY_DOWN;
+    inputDevice[INPUT_LEFT].keyMappings = KEY_LEFT;
+    inputDevice[INPUT_RIGHT].keyMappings = KEY_RIGHT;
+    inputDevice[INPUT_BUTTONA].keyMappings = KEY_Z;
+    inputDevice[INPUT_BUTTONB].keyMappings = KEY_X;
+    inputDevice[INPUT_BUTTONC].keyMappings = KEY_C;
+    inputDevice[INPUT_START].keyMappings = KEY_ENTER;
+
+    unsigned char *str;
+
+    while (running) {
+	if ( audioEnabled && ( str = (unsigned char*)get_audio_stream_buffer(musInfo.stream) )) {
+		ProcessAudioPlayback(NULL, str, AUDIO_SAMPLES);
+		free_audio_stream_buffer(musInfo.stream);
+	}
+    
+	if (display_frame) {	
+	    running = processEvents();
+	    RenderRenderDevice();
+
+	   while(display_frame > 0) {
+	        for (int s = 0; s < gameSpeed; ++s) {
+            ProcessInput();
+
+            if (!masterPaused || frameStep) {
+                switch (gameMode) {
+                    case ENGINE_DEVMENU: processStageSelect(); break;
+                    case ENGINE_MAINGAME: ProcessStage(); break;
+                    case ENGINE_INITDEVMENU:
+                        LoadGameConfig("Data/Game/GameConfig.bin");
+                        initDevMenu();
+                        ResetCurrentStageFolder();
+                        break;
+                    case ENGINE_EXITGAME: running = false; break;
+                    case ENGINE_SCRIPTERROR:
+                        LoadGameConfig("Data/Game/GameConfig.bin");
+                        initErrorMessage();
+                        ResetCurrentStageFolder();
+                        break;
+                    case ENGINE_ENTER_HIRESMODE:
+                        gameMode    = ENGINE_MAINGAME;
+                        highResMode = true;
+                        printLog("Callback: HiRes Mode Enabled");
+                        break;
+                    case ENGINE_EXIT_HIRESMODE:
+                        gameMode    = ENGINE_MAINGAME;
+                        highResMode = false;
+                        printLog("Callback: HiRes Mode Disabled");
+                        break;
+                    case ENGINE_PAUSE: break;
+                    case ENGINE_WAIT: break;
+                    case ENGINE_VIDEOWAIT:
+                        if (ProcessVideo() == 1)
+                            gameMode = ENGINE_MAINGAME;
+                        break;
+                    default: break;
+	        }
+		    frameStep = false;
+	    }
+		
+            display_frame--;
+            } 
+    }
+	    display_frame = 0;
+        }
+    }
+#endif
 
     ReleaseAudioDevice();
     StopVideoPlayback();

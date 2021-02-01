@@ -6,9 +6,11 @@ int videoWidth        = 0;
 int videoHeight       = 0;
 float videoAR         = 0;
 
+#if !RETRO_DISABLE_OGGTHEORA
 THEORAPLAY_Decoder *videoDecoder;
 const THEORAPLAY_VideoFrame *videoVidData;
 THEORAPLAY_Io callbacks;
+#endif
 
 byte videoData    = 0;
 int videoFilePos  = 0;
@@ -18,6 +20,7 @@ int vidBaseticks  = 0;
 
 bool videoSkipped = false;
 
+#if !RETRO_DISABLE_OGGTHEORA
 static long videoRead(THEORAPLAY_Io *io, void *buf, long buflen)
 {
     FileIO *file    = (FileIO *)io->userdata;
@@ -32,9 +35,11 @@ static void videoClose(THEORAPLAY_Io *io)
     FileIO *file = (FileIO *)io->userdata;
     fClose(file);
 }
+#endif
 
 void PlayVideoFile(char *filePath)
 {
+#if RETRO_USING_SDL2 && !RETRO_DISABLE_OGGTHEORA
     char filepath[0x100];
     StrCopy(filepath, BASE_PATH "videos/");
 
@@ -50,7 +55,6 @@ void PlayVideoFile(char *filePath)
     FileIO *file = fOpen(filepath, "rb");
     if (file) {
         printLog("Loaded File '%s'!", filepath);
-
         callbacks.read     = videoRead;
         callbacks.close    = videoClose;
         callbacks.userdata = (void *)file;
@@ -68,7 +72,6 @@ void PlayVideoFile(char *filePath)
             printLog("Video Error!");
             return;
         }
-
         videoWidth  = videoVidData->width;
         videoHeight = videoVidData->height;
         // commit video Aspect Ratio.
@@ -86,10 +89,12 @@ void PlayVideoFile(char *filePath)
     else {
         printLog("Couldn't find file '%s'!", filepath);
     }
+#endif
 }
 
 void UpdateVideoFrame()
 {
+#if RETRO_USING_SDL2 && !RETRO_DISABLE_OGGTHEORA
     if (videoPlaying) {
         if (videoFrameCount > currentVideoFrame) {
             GFXSurface *surface = &gfxSurface[videoData];
@@ -138,10 +143,12 @@ void UpdateVideoFrame()
             CloseFile();
         }
     }
+#endif
 }
 
 int ProcessVideo()
 {
+#if RETRO_USING_SDL2 && !RETRO_DISABLE_OGGTHEORA	
     if (videoPlaying) {
         CheckKeyPress(&keyPress, 0x10);
 
@@ -209,7 +216,7 @@ int ProcessVideo()
             return 2; // its playing as expected
         }
     }
-
+#endif
     return 0; // its not even initialised
 }
 
@@ -219,11 +226,12 @@ void StopVideoPlayback()
         // `videoPlaying` and `videoDecoder` are read by
         // the audio thread, so lock it to prevent a race
         // condition that results in invalid memory accesses.
-        SDL_LockAudio();
+        LOCK_AUDIO_DEVICE()
 
         if (videoSkipped && fadeMode >= 0xFF)
             fadeMode = 0;
 
+#if !RETRO_DISABLE_OGGTHEORA	
         if (videoVidData) {
             THEORAPLAY_freeVideo(videoVidData);
             videoVidData = NULL;
@@ -232,26 +240,31 @@ void StopVideoPlayback()
             THEORAPLAY_stopDecode(videoDecoder);
             videoDecoder = NULL;
         }
+#endif
 
         CloseVideoBuffer();
         videoPlaying = false;
 
-        SDL_UnlockAudio();
+        UNLOCK_AUDIO_DEVICE()
     }
 }
 
 void SetupVideoBuffer(int width, int height)
 {
+#if RETRO_USING_SDL2 && !RETRO_DISABLE_OGGTHEORA
     Engine.videoBuffer = SDL_CreateTexture(Engine.renderer, SDL_PIXELFORMAT_YV12, SDL_TEXTUREACCESS_STREAMING, width, height);
-
+	
     if (!Engine.videoBuffer)
         printLog("Failed to create video buffer!");
+#endif
 }
 
 void CloseVideoBuffer()
 {
     if (videoPlaying) {
+#if RETRO_USING_SDL2 && !RETRO_DISABLE_OGGTHEORA
         SDL_DestroyTexture(Engine.videoBuffer);
-        Engine.videoBuffer = nullptr;
+	Engine.videoBuffer = nullptr;
+#endif
     }
 }

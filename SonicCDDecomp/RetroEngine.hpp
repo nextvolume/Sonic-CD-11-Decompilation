@@ -19,6 +19,17 @@ typedef signed char sbyte;
 typedef unsigned short ushort;
 typedef unsigned int uint;
 
+#if !defined(RETRO_USING_SDL2) && !defined(RETRO_USING_SDL1)
+
+typedef signed char Sint8;
+typedef signed short Sint16;
+typedef signed int Sint32;
+typedef unsigned char Uint8;
+typedef unsigned short Uint16;
+typedef unsigned int Uint32;
+
+#endif
+
 // Platforms (RSDKv3 only defines these 7, but feel free to add your own custom platform define for easier platform code changes)
 #define RETRO_WIN      (0)
 #define RETRO_OSX      (1)
@@ -78,11 +89,15 @@ typedef unsigned int uint;
 #define DEFAULT_FULLSCREEN   false
 #endif
 
+#ifndef RETRO_USING_ALLEGRO4
+
 #if RETRO_PLATFORM == RETRO_WIN || RETRO_PLATFORM == RETRO_OSX || RETRO_PLATFORM == RETRO_iOS || RETRO_PLATFORM == RETRO_VITA                        \
     || RETRO_PLATFORM == RETRO_UWP
 #define RETRO_USING_SDL2 (1)
 #else // Since its an else & not an elif these platforms probably aren't supported yet
 #define RETRO_USING_SDL2 (0)
+#endif
+
 #endif
 
 #if RETRO_PLATFORM == RETRO_iOS || RETRO_PLATFORM == RETRO_ANDROID || RETRO_PLATFORM == RETRO_WP7
@@ -169,29 +184,61 @@ enum RetroBytecodeFormat {
 #define SCREEN_CENTERY (SCREEN_YSIZE / 2)
 
 #if RETRO_PLATFORM == RETRO_WIN || RETRO_PLATFORM == RETRO_UWP
+#if RETRO_USING_SDL2
 #include <SDL.h>
+#endif
+#if !RETRO_DISABLE_OGGVORBIS
 #include <vorbis/vorbisfile.h>
+#endif
+#if !RETRO_DISABLE_OGGTHEORA
 #include <theora/theora.h>
 #include <theoraplay.h>
+#endif
 #elif RETRO_PLATFORM == RETRO_OSX
+#if RETRO_USING_SDL2
 #include <SDL2/SDL.h>
+#endif
+#if !RETRO_DISABLE_OGGVORBIS
 #include <Vorbis/vorbisfile.h>
+#endif
+#if !RETRO_DISABLE_OGGTHEORA
 #include <Theora/theora.h>
 #include "theoraplay.h"
+#endif
 
 #include "cocoaHelpers.hpp"
 #elif RETRO_PLATFORM == RETRO_iOS
+#if RETRO_USING_SDL2
 #include <SDL2/SDL.h>
+#endif
+#if !RETRO_DISABLE_OGGVORBIS
 #include <vorbis/vorbisfile.h>
+#endif
+#if !RETRO_DISABLE_OGGTHEORA
 #include <Theora/theora.h>
 #include "theoraplay.h"
+#endif
 
 #include "cocoaHelpers.hpp"
 #elif RETRO_PLATFORM == RETRO_VITA
+#if RETRO_USING_SDL2
 #include <SDL2/SDL.h>
+#endif
+#if !RETRO_DISABLE_OGGVORBIS
 #include <vorbis/vorbisfile.h>
+#endif
+#if !RETRO_DISABLE_OGGTHEORA
 #include <theora/theora.h>
 #include <theoraplay.h>
+#endif
+#endif
+
+#if RETRO_USING_ALLEGRO4
+#include <allegro.h>
+#endif
+
+#if RETRO_DOS
+extern int useVGAMode;
 #endif
 
 extern bool usingCWD;
@@ -233,6 +280,8 @@ public:
     bool usingDataFile = false;
     bool usingBytecode = false;
     byte bytecodeMode  = BYTECODE_MOBILE;
+    
+    char *dataFile = new char[0x80];
 
     bool initialised = false;
     bool running     = false;
@@ -265,6 +314,7 @@ public:
 
     void Init();
     void Run();
+    void ResetFrameCounter();
 
     bool LoadGameConfig(const char *Filepath);
 
@@ -317,6 +367,10 @@ public:
     SDL_Texture *videoBuffer    = nullptr;
 
     SDL_Event sdlEvents;
+#endif
+
+#if RETRO_USING_ALLEGRO4
+    BITMAP *screenBuffer = NULL;
 #endif
 };
 

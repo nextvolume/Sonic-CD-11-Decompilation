@@ -6,7 +6,7 @@
 #include "fcaseopen.h"
 #define FileIO                                          FILE
 #define fOpen(path, mode)                               fcaseopen(path, mode)
-#define fRead(buffer, elementSize, elementCount, file)  fread(buffer, elementSize, elementCount, file)
+#define fReadFunc(buffer, elementSize, elementCount, file)  fread(buffer, elementSize, elementCount, file)
 #define fSeek(file, offset, whence)                     fseek(file, offset, whence)
 #define fTell(file)                                     ftell(file)
 #define fClose(file)                                    fclose(file)
@@ -17,7 +17,7 @@
 #if RETRO_USING_SDL2
 #define FileIO                                          SDL_RWops
 #define fOpen(path, mode)                               SDL_RWFromFile(path, mode)
-#define fRead(buffer, elementSize, elementCount, file)  SDL_RWread(file, buffer, elementSize, elementCount)
+#define fReadFunc(buffer, elementSize, elementCount, file)  SDL_RWread(file, buffer, elementSize, elementCount)
 #define fSeek(file, offset, whence)                     SDL_RWseek(file, offset, whence)
 #define fTell(file)                                     SDL_RWtell(file)
 #define fClose(file)                                    SDL_RWclose(file)
@@ -25,7 +25,7 @@
 #else
 #define FileIO                                            FILE
 #define fOpen(path, mode)                               fopen(path, mode)
-#define fRead(buffer, elementSize, elementCount, file)  fread(buffer, elementSize, elementCount, file)
+#define fReadFunc(buffer, elementSize, elementCount, file)  fread(buffer, elementSize, elementCount, file)
 #define fSeek(file, offset, whence)                     fseek(file, offset, whence)
 #define fTell(file)                                     ftell(file)
 #define fClose(file)                                    fclose(file)
@@ -33,6 +33,8 @@
 #endif
 
 #endif
+
+int fRead(void *ptr, int size, int nmemb, FileIO *stream);
 
 struct FileInfo {
     char fileName[0x100];

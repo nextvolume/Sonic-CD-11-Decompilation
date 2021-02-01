@@ -1,5 +1,27 @@
 #include "RetroEngine.hpp"
 
+#ifdef RETRO_DOS
+BITMAP *screen8Buffer;
+
+#define NUM_OF_VGA_MODES 6
+
+const struct
+{
+	int mode;
+	Sint16 w, h;
+}VGAModes[NUM_OF_VGA_MODES] = 
+{
+    { GFX_VGA, 320, 200 },
+    { GFX_MODEX, 320, 240 },
+    { GFX_MODEX, 360, 240 },
+    { GFX_MODEX, 376, 282 },
+    { GFX_MODEX, 400, 300 },
+    { GFX_MODEX, 256, 240 }
+};
+
+int useVGAMode = 0;
+#endif
+
 short blendLookupTable[BLENDTABLE_SIZE];
 short subtractLookupTable[BLENDTABLE_SIZE];
 short tintLookupTable[TINTTABLE_SIZE];
@@ -95,6 +117,79 @@ int InitRenderDevice()
     Engine.isFullScreen = true;
 #endif
     
+#endif
+
+#if RETRO_USING_ALLEGRO4
+    allegro_init();
+    
+    install_keyboard();
+    install_mouse();
+    
+    set_color_depth(16);
+    if (
+#if RETRO_DOS
+        useVGAMode ||
+#endif
+        set_gfx_mode(Engine.startFullScreen ? GFX_AUTODETECT_FULLSCREEN : GFX_AUTODETECT_WINDOWED,
+        SCREEN_XSIZE * Engine.windowScale, SCREEN_YSIZE * Engine.windowScale,
+	0, 0) != 0
+    )
+    {
+#if RETRO_DOS
+        if (!useVGAMode) {
+	    printLog("Couldn't get hi-color mode.");
+	    useVGAMode=1;
+        } 
+
+	set_color_depth(8);
+	
+	int m = useVGAMode-1;
+	
+	if (m < 0 || m >= NUM_OF_VGA_MODES)
+		printLog("ERROR: Invalid VGA mode specified!");
+	
+	printLog("Using %s video mode %dx%d", (VGAModes[m].mode==GFX_VGA)?"VGA":"Mode-X",
+		VGAModes[m].w, VGAModes[m].h);
+	
+	if (m >= 0 && m < NUM_OF_VGA_MODES && set_gfx_mode(VGAModes[m].mode, VGAModes[m].w,
+            VGAModes[m].h, 0, 0) == 0) {
+	    PALETTE rgbPal;
+	    generate_332_palette(rgbPal);
+	    
+	    rgbPal[0].r = 0;
+	    rgbPal[0].g = 0;
+	    rgbPal[0].b = 0;
+	    
+	    set_palette(rgbPal);
+	    SetScreenSize(SCREEN_W, SCREEN_YSIZE);
+	    Engine.windowScale = 1;
+
+	    screen8Buffer = create_bitmap(SCREEN_XSIZE, SCREEN_YSIZE);
+	}
+	else
+#endif
+	{
+	    printLog("ERROR: Couldn't initialize a graphic mode!");
+	    return 0;
+	}
+    }
+    
+    Engine.isFullScreen = Engine.startFullScreen;
+    
+    Engine.screenBuffer =
+	create_bitmap_ex(16, SCREEN_XSIZE, SCREEN_YSIZE);
+
+    if (!Engine.screenBuffer) {
+        printLog("ERROR: failed to create screen buffer!");
+        return 0;
+    }
+	
+    Engine.frameBuffer =  (ushort*)Engine.screenBuffer->dat;
+    
+    set_window_title(gameTitle);
+    
+    Engine.useHQModes = false; // disabled
+    Engine.borderless = false; // disabled
 #endif
 
     OBJECT_BORDER_X2 = SCREEN_XSIZE + 0x80;
@@ -199,6 +294,8 @@ void RenderRenderDevice()
             SDL_RenderCopy(Engine.renderer, Engine.screenBuffer, NULL, destScreenPos);
         }
         else {
+	    printLog("BANZAI:::");
+	
             int w = 0, h = 0;
             SDL_QueryTexture(Engine.screenBuffer2x, NULL, NULL, &w, &h);
             SDL_LockTexture(Engine.screenBuffer2x, NULL, (void **)&pixels, &pitch);
@@ -263,11 +360,35 @@ void RenderRenderDevice()
         SDL_RenderPresent(Engine.renderer);
     }
 #endif
+
+#if RETRO_USING_ALLEGRO4
+#if RETRO_DOS
+   if (get_color_depth() == 8) {
+	Uint16 c;
+   
+        for(int x = 0; x < (SCREEN_XSIZE * SCREEN_YSIZE); x++) {
+		c = ((Uint16*)Engine.screenBuffer->dat)[x];
+		
+		screen8Buffer->line[0][x] =
+			( (c & 31) >> 3 ) |
+			( ( ( (c >> 5) & 63 ) >> 3 ) << 2 )|
+			( ( ( (c >> 11) & 31 ) >> 2 ) << 5);
+	}
+
+	stretch_blit(screen8Buffer, screen, 0, 0, screen8Buffer->w, screen8Buffer->h, 0, 0, SCREEN_W, SCREEN_H);
+   }
+   else
+#endif
+	stretch_blit(Engine.screenBuffer, screen, 0, 0, Engine.screenBuffer->w, Engine.screenBuffer->h, 0, 0, SCREEN_W, SCREEN_H);
+#endif
+
 }
 void ReleaseRenderDevice()
 {
+#if !RETRO_USING_ALLEGRO4
     if (Engine.frameBuffer)
         delete[] Engine.frameBuffer;
+#endif
     if (Engine.frameBuffer2x)
         delete[] Engine.frameBuffer2x;
 #if RETRO_USING_SDL2
@@ -278,6 +399,10 @@ void ReleaseRenderDevice()
 
     SDL_DestroyRenderer(Engine.renderer);
     SDL_DestroyWindow(Engine.window);
+#endif
+    
+#if RETRO_USING_ALLEGRO4
+    destroy_bitmap(Engine.screenBuffer);
 #endif
 }
 

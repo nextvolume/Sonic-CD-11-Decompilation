@@ -100,6 +100,10 @@ void InitUserdata()
         ini.SetInteger("Window", "ScreenWidth", SCREEN_XSIZE = DEFAULT_SCREEN_XSIZE);
         ini.SetInteger("Window", "RefreshRate", Engine.refreshRate = 60);
 
+#if RETRO_DOS
+	ini.SetInteger("Window", "UseVGAMode", useVGAMode=0);
+#endif
+	    
         ini.SetFloat("Audio", "BGMVolume", bgmVolume / (float)MAX_VOLUME);
         ini.SetFloat("Audio", "SFXVolume", sfxVolume / (float)MAX_VOLUME);
 
@@ -125,6 +129,9 @@ void InitUserdata()
         ini.SetInteger("Controller 1", "Start", inputDevice[INPUT_START].contMappings = SDL_CONTROLLER_BUTTON_START);
 #endif
 
+        StrCopy(Engine.dataFile, "Data.rsdk");
+        ini.SetString("Dev", "DataFile", Engine.dataFile);
+
         ini.Write(BASE_PATH"settings.ini");
     }
     else {
@@ -145,6 +152,9 @@ void InitUserdata()
             Engine.useSteamDir = true;
         if (!ini.GetBool("Dev", "UseHQModes", &Engine.useHQModes))
             Engine.useHQModes = true;
+	
+        if (!ini.GetString("Dev", "DataFile", Engine.dataFile))
+            StrCopy(Engine.dataFile, "Data.rsdk");
 
         if (!ini.GetInteger("Game", "Language", &Engine.language))
             Engine.language = RETRO_EN;
@@ -167,6 +177,11 @@ void InitUserdata()
         if (!ini.GetInteger("Window", "RefreshRate", &Engine.refreshRate))
             Engine.refreshRate = 60;
 
+#ifdef RETRO_DOS
+        if (!ini.GetInteger("Window", "UseVGAMode", &useVGAMode))
+	    useVGAMode = 0;
+#endif
+	
         float bv = 0, sv = 0;
         if (!ini.GetFloat("Audio", "BGMVolume", &bv))
             bv = 1.0f;
@@ -186,6 +201,7 @@ void InitUserdata()
         if (sfxVolume < 0)
             sfxVolume = 0;
 
+#if RETRO_USING_SDL2	
         if (!ini.GetInteger("Keyboard 1", "Up", &inputDevice[0].keyMappings))
             inputDevice[0].keyMappings = SDL_SCANCODE_UP;
         if (!ini.GetInteger("Keyboard 1", "Down", &inputDevice[1].keyMappings))
@@ -219,6 +235,7 @@ void InitUserdata()
             inputDevice[6].contMappings = SDL_CONTROLLER_BUTTON_X;
         if (!ini.GetInteger("Controller 1", "Start", &inputDevice[7].contMappings))
             inputDevice[7].contMappings = SDL_CONTROLLER_BUTTON_START;
+#endif
     }
     SetScreenSize(SCREEN_XSIZE, SCREEN_YSIZE);
 
@@ -235,9 +252,11 @@ void InitUserdata()
     if (file) {
         fClose(file);
 
+#if RETRO_USING_SDL2
         int nummaps = SDL_GameControllerAddMappingsFromFile(buffer);
         if (nummaps >= 0)
             printLog("loaded %d controller mappings from '%s'\n", buffer, nummaps);
+#endif
     }
 
 #if RETRO_PLATFORM == RETRO_OSX || RETRO_PLATFORM == RETRO_UWP
@@ -351,6 +370,9 @@ void writeSettings() {
     ini.SetComment("Dev", "UseHQComment","Determines if applicable rendering modes (such as 3D floor from special stages) will render in \"High Quality\" mode or standard mode");
     ini.SetBool("Dev", "UseHQModes", Engine.useHQModes);
 
+    ini.SetComment("Dev", "DataFileComment", "Determines what RSDK file will be loaded");
+    ini.SetString("Dev", "DataFile", Engine.dataFile);
+	
     ini.SetComment("Game", "LangComment", "Sets the game language (0 = EN, 1 = FR, 2 = IT, 3 = DE, 4 = ES, 5 = JP)");
     ini.SetInteger("Game", "Language", Engine.language);
     ini.SetComment("Game", "OGCtrlComment", "Sets the game's spindash style (-1 = let save file decide, 0 = S2, 1 = CD)");
@@ -370,6 +392,11 @@ void writeSettings() {
     ini.SetInteger("Window", "ScreenWidth", SCREEN_XSIZE);
     ini.SetComment("Window", "RRComment", "Determines the target FPS");
     ini.SetInteger("Window", "RefreshRate", Engine.refreshRate);
+#if RETRO_DOS
+    ini.SetComment("Window", "VGAComment", "Force VGA video mode (0=don't, 1=320x200[13h],2=320x240[X]),3=360x240[X], 4=376x282[X],5=400x300[X])");
+    
+    ini.SetInteger("Window", "UseVGAMode", useVGAMode);
+#endif
 
     ini.SetFloat("Audio", "BGMVolume", bgmVolume / (float)MAX_VOLUME);
     ini.SetFloat("Audio", "SFXVolume", sfxVolume / (float)MAX_VOLUME);

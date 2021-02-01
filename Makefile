@@ -7,8 +7,7 @@ CXXFLAGS_ALL += -MMD -MP -MF objects/$*.d $(shell pkg-config --cflags $(PKG_CONF
 LDFLAGS_ALL += $(LDFLAGS)
 LIBS_ALL += $(shell pkg-config --libs $(PKG_CONFIG_STATIC_FLAG) sdl2 vorbisfile vorbis theoradec) -pthread $(LIBS)
 
-SOURCES = dependencies/all/theoraplay/theoraplay.c \
-		SonicCDDecomp/Animation.cpp \
+SOURCES = SonicCDDecomp/Animation.cpp \
 		SonicCDDecomp/Audio.cpp \
 		SonicCDDecomp/Collision.cpp \
 		SonicCDDecomp/Debug.cpp \
@@ -31,6 +30,21 @@ SOURCES = dependencies/all/theoraplay/theoraplay.c \
 		SonicCDDecomp/Userdata.cpp \
 		SonicCDDecomp/Video.cpp
 
+ifneq ($(USE_ALLEGRO4),)
+	ifneq ($(DOS),)
+		CXXFLAGS_ALL = -DBASE_PATH='"$(BASE_PATH)"'  \
+		-DRETRO_USING_ALLEGRO4 -DRETRO_DOS -DRETRO_DISABLE_OGGTHEORA $(CXXFLAGS)
+		LDFLAGS_ALL = $(LDFLAGS)
+		LIBS_ALL = -lvorbisfile  -lvorbis -logg -lalleg $(LIBS)
+	else
+		CXXFLAGS_ALL = $(shell pkg-config --cflags vorbisfile vorbis) $(shell allegro-config --cppflags) \
+		-DBASE_PATH='"$(BASE_PATH)"' -DRETRO_DISABLE_OGGTHEORA -DRETRO_USING_ALLEGRO4 $(CXXFLAGS)
+		LDFLAGS_ALL = $(LDFLAGS)
+		LIBS_ALL =  $(shell pkg-config --libs vorbisfile vorbis) $(shell allegro-config --libs) -pthread $(LIBS)	
+	endif	
+else
+	SOURCES += dependencies/all/theoraplay/theoraplay.c
+endif
 	  
 ifneq ($(FORCE_CASE_INSENSITIVE),)
 	CXXFLAGS_ALL += -DFORCE_CASE_INSENSITIVE
