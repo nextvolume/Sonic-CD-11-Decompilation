@@ -1,7 +1,7 @@
 #include "RetroEngine.hpp"
 
 #ifdef RETRO_DOS
-BITMAP *screen8Buffer;
+BITMAP *screen8Buffer = NULL;
 
 #define NUM_OF_VGA_MODES 6
 
@@ -402,6 +402,12 @@ void ReleaseRenderDevice()
 #endif
     
 #if RETRO_USING_ALLEGRO4
+    
+#if RETRO_DOS    
+    if (screen8Buffer)
+        destroy_bitmap(screen8Buffer);
+#endif
+    
     destroy_bitmap(Engine.screenBuffer);
 #endif
 }
